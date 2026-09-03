@@ -1,0 +1,10 @@
+config.json
+backup_log.txt
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
