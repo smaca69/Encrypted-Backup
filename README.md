@@ -1,82 +1,89 @@
 # Encrypted Backup
 
-A Python desktop app that encrypts your files individually before storing them in a
-backup destination (local drive, OneDrive, Google Drive, etc.).
+Encrypted Backup is a Windows desktop application for protecting folders before
+copying them to a local or cloud-synchronized destination. Files are encrypted
+individually, so a backup destination can be stored on OneDrive, Google Drive,
+Proton Drive, an external disk, or another folder without exposing the originals.
+
+## Features
+
+- Fernet encryption for every backed-up file and the backup manifest
+- Incremental backups that skip unchanged files
+- Dry-run and force-backup modes
+- Single-file and complete-source restore
+- Multiple labeled source folders
+- Optional unattended backups through Windows Task Scheduler
+- Live progress and error logging in the desktop interface
 
 ## Requirements
 
-- Python 3.10+
-- Dependencies in `requirements.txt`
+- Windows with Python 3.10 or newer
+- Packages listed in `requirements.txt`
 
-## Setup
+## Installation
 
 ```powershell
 cd D:\DATA\EncryptedBackup
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-## Launch
+## Start the application
 
 ```powershell
 python encrypted_backup_gui.py
 ```
 
-## First run
+On first launch, the application creates an encryption key at
+`C:\Users\<YourName>\.encbackup_key`. The GUI stores source and destination
+settings in `config.json` beside the application.
 
-A master encryption key is generated automatically on first launch and saved to:
+> **Protect the key.** A backup cannot be restored without it. Keep a secure,
+> separate copy of the key and never place it in the backup destination.
 
+## Configure a backup
+
+1. In **Sources & Destination**, add each source folder with a short label and
+   choose the backup destination.
+2. In **Backup**, select all sources or one label and click **Run Backup**.
+3. Use **Dry run** to preview changes. Use **Force** when every source file must
+   be encrypted again.
+4. In **Restore**, decrypt one file or restore an entire labeled source while
+   preserving its folder structure.
+
+The application writes its automated-run log to `backup_log.txt`.
+
+## Automated backups
+
+The headless entry point is designed for Windows Task Scheduler:
+
+```powershell
+python encrypted_backup_headless.py
 ```
-C:\Users\<YourName>\.encbackup_key
-```
 
-> **Important — keep this file safe.**
-> Without the key you cannot decrypt any of your backups.
-> Consider copying it to a USB drive or password manager.
-> Never store the key inside your backup destination folder.
+Configure the schedule from the application's automated-backups settings. The
+scheduled task reads the saved password from Windows Credential Manager and uses
+the settings in `config.json`; it does not require the GUI to be open.
 
-## How to use
+## Backup layout
 
-### 1. Sources & Destination (📁 tab)
-
-- **Add Source** — choose a folder to back up and give it a short label
-  (e.g. label `Documents`, path `C:\Users\Sam\Documents`).
-  You can add as many sources as you like.
-- **Remove** — click a row to select it, then click Remove. This does **not**
-  delete already-backed-up files.
-- **Backup Destination** — click Browse and point it at your cloud-synced folder
-  (e.g. `C:\Users\Sam\OneDrive\Backups`).
-
-### 2. Backup (🔄 tab)
-
-- The status table shows how many files each source has and when it was last backed up.
-- **Dry run** — tick this to preview what would be backed up without writing any files.
-- **Force** — tick this to re-encrypt all files even if they haven't changed.
-- Choose **All sources** or a specific label from the dropdown.
-- Click **▶ Run Backup**. Progress appears in the log area in real time.
-- Files that haven't changed since the last backup are automatically skipped.
-
-### 3. Restore (📤 tab)
-
-**Single File** — decrypt one `.enc` file back to a folder you choose.
-
-**Entire Source** — decrypt every backed-up file for a source label back to a
-folder, preserving the original subfolder structure.
-
-## Backup destination structure
-
-```
+```text
 <destination>/
   <SourceLabel>/
     subfolder/
       report.pdf.enc
       photo.jpg.enc
     notes.txt.enc
-  .manifest.enc          ← encrypted index (do not delete)
+  .manifest.enc
 ```
 
-## Security notes
+Do not delete `.manifest.enc`: it contains the encrypted index used to identify
+changed files and restore source paths.
 
-- Encryption: **Fernet** (AES-128-CBC + HMAC-SHA256) from the `cryptography` package.
-- Each file is encrypted independently — cloud-sync tools only upload changed files.
-- The manifest (file index / hash list) is also encrypted with the same key.
-- The key file uses OS-level read permissions (owner-only on Unix/Linux).
+## Security
+
+- Files are encrypted independently with Fernet from the `cryptography` package.
+- The encrypted manifest contains backup metadata and file hashes.
+- `config.json`, `backup_log.txt`, local environments, and Python caches are
+  excluded from version control by `.gitignore`.
+- Test restoration regularly and keep the encryption key separate from the
+  backup destination.
