@@ -43,12 +43,20 @@ settings in `config.json` beside the application.
 ## Configure a backup
 
 1. In **Sources & Destination**, add each source folder with a short label and
-   choose the backup destination.
+   choose the backup destination. Each source has an **Include subfolders**
+   checkbox, which is on by default. Clear it to back up only files directly in
+   that folder. You can change it in the source list; the setting is saved for
+   manual and scheduled backups. Previously backed-up subfolder files are retained.
 2. In **Backup**, select all sources or one label and click **Run Backup**.
 3. Use **Dry run** to preview changes. Use **Force** when every source file must
    be encrypted again.
 4. In **Restore**, decrypt one file or restore an entire labeled source while
    preserving its folder structure.
+
+Source scans automatically exclude folders named `$RECYCLE.BIN` and
+`System Volume Information` (case-insensitive, at any depth). This applies to
+source file counts, dry runs, and both manual and scheduled backups. Existing
+backup copies of these folders are retained.
 
 The application writes its automated-run log to `backup_log.txt`.
 

@@ -37,6 +37,7 @@ DEFAULT_KEY_FILE  = Path.home() / ".encbackup_key"
 CONFIG_FILE       = Path(__file__).parent / "config.json"
 MANIFEST_FILENAME = ".manifest.enc"
 ENC_SUFFIX        = ".enc"
+IGNORED_SOURCE_FOLDERS = frozenset({"$recycle.bin", "system volume information"})
 
 SALT_SIZE      = 32        # bytes of random salt stored in the key file
 KDF_ITERATIONS = 600_000   # PBKDF2 iterations — increases brute-force cost
@@ -242,14 +243,31 @@ def decrypt_file(enc_path: Path, output_path: Path, fernet: Fernet) -> None:
 
 # ─── Source management ────────────────────────────────────────────────────────
 
-def add_source(cfg: dict, label: str, path: str) -> None:
+def iter_source_files(source: Path, include_subfolders: bool = True):
+    """Yield source files without entering excluded Windows system folders."""
+    if any(part.casefold() in IGNORED_SOURCE_FOLDERS
+           for part in source.absolute().parts):
+        return
+    for root, directories, filenames in os.walk(source):
+        directories[:] = [name for name in directories
+                          if include_subfolders
+                          and name.casefold() not in IGNORED_SOURCE_FOLDERS]
+        for name in filenames:
+            path = Path(root) / name
+            if path.is_file():
+                yield path
+
+
+def add_source(cfg: dict, label: str, path: str,
+               include_subfolders: bool = True) -> None:
     label = label.strip()
     if not label:
         raise ValueError("Label cannot be empty.")
     for s in cfg["sources"]:
         if s["label"].lower() == label.lower():
             raise ValueError(f"A source labelled '{label}' already exists.")
-    cfg["sources"].append({"label": label, "path": str(Path(path).resolve())})
+    cfg["sources"].append({"label": label, "path": str(Path(path).resolve()),
+                           "include_subfolders": include_subfolders})
     save_config(cfg)
 
 
@@ -292,7 +310,8 @@ def get_status(cfg: dict, password: Optional[str] = None) -> list[dict]:
         file_count = 0
         if p.exists():
             try:
-                file_count = sum(1 for f in p.rglob("*") if f.is_file())
+                file_count = sum(1 for _ in iter_source_files(
+                    p, s.get("include_subfolders", True)))
             except PermissionError:
                 file_count = -1
 
@@ -359,7 +378,8 @@ def backup(
         manifest["sources"].setdefault(label, {"files": {}, "last_backup": None})
         src_manifest = manifest["sources"][label]
 
-        all_files = [f for f in src_path.rglob("*") if f.is_file()]
+        all_files = list(iter_source_files(
+            src_path, src.get("include_subfolders", True)))
         totals["total"] += len(all_files)
 
         for file in all_files:

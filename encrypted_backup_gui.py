@@ -601,6 +601,13 @@ class SourcesFrame(ctk.CTkFrame):
 
         _section(self, "SOURCE FOLDERS")
 
+        ctk.CTkLabel(
+            self,
+            text="Automatically excluded: $RECYCLE.BIN and System Volume Information.",
+            text_color=COL_MUTED, font=ctk.CTkFont(size=11),
+            wraplength=660, justify="left",
+        ).pack(anchor="w", pady=(0, 8))
+
         hdr = ctk.CTkFrame(self, fg_color=COL_HDR_BG, height=30, corner_radius=6)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
@@ -655,15 +662,21 @@ class SourcesFrame(ctk.CTkFrame):
             ).pack(pady=20)
         else:
             for s in sources:
-                self._add_row(s["label"], s["path"])
+                self._add_row(s["label"], s["path"], s.get("include_subfolders", True))
 
         self.dest_var.set(self.app.cfg.get("destination", ""))
 
-    def _add_row(self, label: str, path: str):
+    def _add_row(self, label: str, path: str, include_subfolders: bool):
         row = ctk.CTkFrame(self.list_frame, fg_color=COL_ROW_BG,
                            corner_radius=6, height=36)
         row.pack(fill="x", pady=2, padx=1)
         row.pack_propagate(False)
+        include_var = tk.BooleanVar(value=include_subfolders)
+        ctk.CTkCheckBox(
+            row, text="Include subfolders", variable=include_var,
+            width=155, font=ctk.CTkFont(size=11),
+            command=lambda: self._set_include_subfolders(label, include_var.get()),
+        ).pack(side="right", padx=10)
         lbl_w  = ctk.CTkLabel(row, text=label, width=130, anchor="w",
                                font=ctk.CTkFont(size=12, weight="bold"))
         lbl_w.pack(side="left", padx=10)
@@ -679,6 +692,13 @@ class SourcesFrame(ctk.CTkFrame):
 
         for w in (row, lbl_w, path_w):
             w.bind("<Button-1>", select)
+
+    def _set_include_subfolders(self, label: str, include_subfolders: bool):
+        for source in self.app.cfg["sources"]:
+            if source["label"] == label:
+                source["include_subfolders"] = include_subfolders
+                bk.save_config(self.app.cfg)
+                break
 
     def _add_source(self):
         dlg = AddSourceDialog(self)
@@ -724,9 +744,9 @@ class AddSourceDialog(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Add Source Folder")
-        self.geometry("500x230")
+        self.geometry("500x270")
         self.resizable(False, False)
-        self.result: tuple[str, str] | None = None
+        self.result: tuple[str, str, bool] | None = None
         self._build()
         self.grab_set()
         self.focus()
@@ -740,6 +760,7 @@ class AddSourceDialog(ctk.CTkToplevel):
 
         self.label_var = tk.StringVar()
         self.path_var  = tk.StringVar()
+        self.include_subfolders_var = tk.BooleanVar(value=True)
 
         for row_i, (txt, var, ph) in enumerate([
             ("Label:",  self.label_var, "Short name, e.g. Documents"),
@@ -754,6 +775,9 @@ class AddSourceDialog(ctk.CTkToplevel):
                               command=self._browse).grid(row=row_i, column=2)
 
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
+        ctk.CTkCheckBox(
+            self, text="Include subfolders", variable=self.include_subfolders_var,
+        ).pack(anchor="w", padx=28, pady=(8, 0))
         btn_row.pack(pady=14)
         ctk.CTkButton(btn_row, text="Add", width=110,
                       fg_color=COL_ACCENT, hover_color=COL_ACCENT_H,
@@ -778,7 +802,7 @@ class AddSourceDialog(ctk.CTkToplevel):
             messagebox.showwarning("Invalid folder",
                                    "Please select an existing folder.", parent=self)
             return
-        self.result = (label, path)
+        self.result = (label, path, self.include_subfolders_var.get())
         self.destroy()
 
 
